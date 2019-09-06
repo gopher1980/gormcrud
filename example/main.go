@@ -118,10 +118,11 @@ func main() {
 
 	r := mux.NewRouter()
 
-	gormcrud.Mapping(r, "/api/v1/author", db, Author{}, []Author{})
-	gormcrud.Mapping(r, "/api/v1/category", db, Category{}, []Category{})
-	gormcrud.Mapping(r, "/api/v1/tag", db, Tag{}, []Tag{})
-	gormcrud.Mapping(r, "/api/v1/note", db, Note{}, []Note{})
+	gormcrud.Map(r, db).
+	NewMap("/api/v1/author", []Author{}).Full().
+	NewMap("/api/v1/category", []Category{}).Full().
+	NewMap("/api/v1/tag", []Tag{}).Full().
+	NewMap("/api/v1/note", []Note{}).Full()
 
 	http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(addr, nil))

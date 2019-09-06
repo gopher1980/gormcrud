@@ -10,3 +10,5 @@ gormcrud.Mapping(r, "/api/v1/tag", db, Tag{}, []Tag{})
 gormcrud.Mapping(r, "/api/v1/note", db, Note{}, []Note{})
 ```
 
+full example https://github.com/gopher1980/gormcrud/blob/master/example/main.go
+

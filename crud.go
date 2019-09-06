@@ -21,13 +21,11 @@ type ErrorCrud struct {
 }
 
 type LinkStatusCrud struct {
-	Message   string `json:"message"`
-	Status    string `json:"status"`
-	Operation string `json:"operation"`
-	CountAfter int `json:"count_after"`
-	CountBefore int `json:"count_before"`
-
-
+	Message     string `json:"message"`
+	Status      string `json:"status"`
+	Operation   string `json:"operation"`
+	CountAfter  int    `json:"count_after"`
+	CountBefore int    `json:"count_before"`
 }
 
 // ValidateSave is
@@ -106,8 +104,8 @@ func Page(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Req
 	}
 }
 
-// First is
-func First(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request) {
+// Get is
+func Get(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		db := db.Set("gorm:auto_preload", true).
 			Set("gorm:association_autoupdate", false).
@@ -203,17 +201,17 @@ func Link(db *gorm.DB, root interface{}, op string) func(w http.ResponseWriter, 
 					name := elem.Type().Field(i).Name
 					if strings.EqualFold(name, field) {
 						child = elem.Field(i).Type()
-						childCurrentValue =  elem.Field(i)
+						childCurrentValue = elem.Field(i)
 						childFieldIndex = i
 						break
 					}
 				}
 				if child == nil {
 					result[field+id1+id2] = LinkStatusCrud{
-						Message:   "ID:" + id1 + " -> " + id2 + "(err)(Field Not Found)",
-						Status:    "err",
-						Operation: op,
-						CountAfter: -1,
+						Message:     "ID:" + id1 + " -> " + id2 + "(err)(Field Not Found)",
+						Status:      "err",
+						Operation:   op,
+						CountAfter:  -1,
 						CountBefore: -1,
 					}
 					continue
@@ -225,28 +223,27 @@ func Link(db *gorm.DB, root interface{}, op string) func(w http.ResponseWriter, 
 					if ret.RowsAffected == 0 {
 						w.WriteHeader(http.StatusNotFound)
 						result[field+id1+"_"+id2] = LinkStatusCrud{
-							Message:   "ID:" + id1 + " -> " + id2 + "(err)(Status Not Found)",
-							Status:    "err",
-							Operation: op,
-							CountAfter: -1,
+							Message:     "ID:" + id1 + " -> " + id2 + "(err)(Status Not Found)",
+							Status:      "err",
+							Operation:   op,
+							CountAfter:  -1,
 							CountBefore: -1,
 						}
 						continue
 					}
 					if ret.Error != nil {
 						result[field+id1+id2] = LinkStatusCrud{
-							Message:   "ID:" + id1 + " -> " + id2 + "(err)(" + string(ret.Error.Error()) + ")",
-							Status:    "err",
-							Operation: op,
-							CountAfter: -1,
+							Message:     "ID:" + id1 + " -> " + id2 + "(err)(" + string(ret.Error.Error()) + ")",
+							Status:      "err",
+							Operation:   op,
+							CountAfter:  -1,
 							CountBefore: -1,
 						}
 						continue
 					}
 				}
 
-
-				func () {
+				func() {
 					association := db.Model(rootEntity).Association(field)
 					countBefore := association.Count()
 
@@ -258,7 +255,7 @@ func Link(db *gorm.DB, root interface{}, op string) func(w http.ResponseWriter, 
 									Status:      "err",
 									Operation:   op,
 									CountBefore: countBefore,
-									CountAfter: -1,
+									CountAfter:  -1,
 								}
 							}
 						}()
@@ -278,19 +275,17 @@ func Link(db *gorm.DB, root interface{}, op string) func(w http.ResponseWriter, 
 							CountBefore: countBefore,
 							CountAfter:  countAfter,
 						}
-					}else{
+					} else {
 						countAfter := db.Model(rootEntity).Association(field).Delete(childEntity).Count()
 						result[field+id1+"_"+id2] = LinkStatusCrud{
-							Message:   "ID:" + id1 + " -/-> " + id2 + " (ok)",
-							Status:    "ok",
-							Operation: "unlink",
+							Message:     "ID:" + id1 + " -/-> " + id2 + " (ok)",
+							Status:      "ok",
+							Operation:   "unlink",
 							CountBefore: countBefore,
 							CountAfter:  countAfter,
-
 						}
 					}
 				}()
-
 
 			}
 		}
@@ -302,18 +297,78 @@ func Link(db *gorm.DB, root interface{}, op string) func(w http.ResponseWriter, 
 
 }
 
+type MapperGormCrud struct {
+	R        *mux.Router
+	RestBase string
+	Db       *gorm.DB
+	Entity   interface{}
+	Array    interface{}
+}
 
 // https://tools.ietf.org/id/draft-snell-link-method-01.html#rfc.section.5
 // https://tools.ietf.org/html/draft-snell-link-method-12
-func Mapping(r *mux.Router, restBase string, db *gorm.DB, entitiy interface{}, array interface{}) {
-	r.HandleFunc(restBase, Save(db, entitiy)).Methods(http.MethodPost)
-	r.HandleFunc(restBase, All(db, array)).Methods(http.MethodGet)
-	r.HandleFunc(restBase+".page", Page(db, array)).Methods(http.MethodGet)
-	r.HandleFunc(restBase+"/{id}", First(db, entitiy)).Methods(http.MethodGet)
-	r.HandleFunc(restBase+"/{id}", Delete(db, entitiy)).Methods(http.MethodDelete)
-	r.HandleFunc(restBase+"/{id}/link", Link(db, entitiy,"link")).Methods(http.MethodGet)
-	r.HandleFunc(restBase+"/{id}/unlink", Link(db, entitiy, "unlink")).Methods(http.MethodGet)
-	r.HandleFunc(restBase+"/{id}", Link(db, entitiy, "link")).Methods("LINK")
-	r.HandleFunc(restBase+"/{id}", Link(db, entitiy,"unlink")).Methods("UNLINK")
+func Map(r *mux.Router, db *gorm.DB) MapperGormCrud {
+	return MapperGormCrud{R: r, Db: db}
 }
 
+func (g MapperGormCrud) NewMap(restBase string, array interface{}) MapperGormCrud {
+	return MapperGormCrud{R: g.R, RestBase: restBase, Db: g.Db, Entity: reflect.TypeOf(array).Elem(), Array: array}
+}
+
+func (g MapperGormCrud) Save() MapperGormCrud {
+	g.R.HandleFunc(g.RestBase, Save(g.Db, g.Entity)).Methods(http.MethodPost)
+	return g
+}
+
+func (g MapperGormCrud) All() MapperGormCrud {
+	g.R.HandleFunc(g.RestBase, All(g.Db, g.Array)).Methods(http.MethodGet)
+	return g
+}
+
+func (g MapperGormCrud) Page() MapperGormCrud {
+	g.R.HandleFunc(g.RestBase+".page", Page(g.Db, g.Array)).Methods(http.MethodGet)
+	return g
+}
+
+func (g MapperGormCrud) Get() MapperGormCrud {
+	g.R.HandleFunc(g.RestBase+"/{id}", Get(g.Db, g.Entity)).Methods(http.MethodGet)
+	return g
+}
+
+func (g MapperGormCrud) Delete() MapperGormCrud {
+	g.R.HandleFunc(g.RestBase+"/{id}", Delete(g.Db, g.Entity)).Methods(http.MethodDelete)
+	return g
+}
+
+func (g MapperGormCrud) LinkMethod() MapperGormCrud {
+	g.R.HandleFunc(g.RestBase+"/{id}", Link(g.Db, g.Entity, "link")).Methods("LINK")
+	g.R.HandleFunc(g.RestBase+"/{id}", Link(g.Db, g.Entity, "unlink")).Methods("UNLINK")
+	return g
+}
+
+func (g MapperGormCrud) LinkUrl() MapperGormCrud {
+	g.R.HandleFunc(g.RestBase+"/{id}/link", Link(g.Db, g.Entity, "link")).Methods(http.MethodGet)
+	g.R.HandleFunc(g.RestBase+"/{id}/unlink", Link(g.Db, g.Entity, "unlink")).Methods(http.MethodGet)
+	return g
+}
+
+func (g MapperGormCrud) Base() MapperGormCrud {
+	g.
+		Delete().
+		Get().
+		Page().
+		Save()
+	return g
+}
+
+func (g MapperGormCrud) Full() MapperGormCrud {
+	g.
+		All().
+		Delete().
+		Get().
+		LinkMethod().
+		LinkUrl().
+		Page().
+		Save()
+	return g
+}

@@ -14,7 +14,7 @@ Example (gorilla/mux):
         http.Handle("/", r)
 	log.Fatal(http.ListenAndServe(addr, nil))
 ```
-
+full example mux https://github.com/gopher1980/gormcrud/blob/master/mux_example/main.go
 Example (Gin Web Framework):
 
 ```golang
@@ -28,5 +28,4 @@ Example (Gin Web Framework):
         r.Run(addr)
 ```
 
-full example https://github.com/gopher1980/gormcrud/blob/master/example/main.go
-
+full example gin https://github.com/gopher1980/gormcrud/blob/master/gin_example/main.go

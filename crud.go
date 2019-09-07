@@ -2,12 +2,14 @@ package gormcrud
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
 
@@ -39,9 +41,9 @@ type ValidateDelete interface {
 }
 
 // Save is
-func Save(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Request) {
+func Save(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db1 := db.Set("gorm:auto_preload", true).
 			Set("gorm:association_autoupdate", false).
 			Set("gorm:association_autocreate", false)
@@ -56,7 +58,8 @@ func Save(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Requ
 				return
 			}
 		}
-
+		fmt.Println(
+			reflect.New(reflect.TypeOf(new)))
 		ret := db1.Save(entity)
 		if ret != nil {
 			if ret.Error != nil {
@@ -69,8 +72,8 @@ func Save(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Requ
 }
 
 // All is
-func All(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+func All(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
+	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db := db.Set("gorm:auto_preload", true).Set("gorm:association_autoupdate", false).Set("gorm:association_autocreate", false)
 		w.Header().Set("Content-Type", "application/json")
 		entity := reflect.New(reflect.TypeOf(elem)).Interface()
@@ -85,8 +88,8 @@ func All(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Requ
 }
 
 // Page is
-func Page(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+func Page(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
+	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db := db.Set("gorm:auto_preload", true).Set("gorm:association_autoupdate", false).Set("gorm:association_autocreate", false)
 		w.Header().Set("Content-Type", "application/json")
 		entity := reflect.New(reflect.TypeOf(elem)).Interface()
@@ -105,16 +108,15 @@ func Page(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Req
 }
 
 // Get is
-func Get(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+func Get(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
+	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db := db.Set("gorm:auto_preload", true).
 			Set("gorm:association_autoupdate", false).
 			Set("gorm:association_autocreate", false)
 		w.Header().Set("Content-Type", "application/json")
 		entity := reflect.New(reflect.TypeOf(elem)).Interface()
 
-		vars := mux.Vars(r)
-		key := vars["id"]
+		key := id
 		ret := db.Where("id = ?", key).First(entity)
 		if ret != nil {
 			if ret.RowsAffected == 0 {
@@ -132,13 +134,11 @@ func Get(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Requ
 }
 
 // Delete is
-func Delete(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+func Delete(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
+	return func(w http.ResponseWriter, r *http.Request, id string) {
 		w.Header().Set("Content-Type", "application/json")
 		entity := reflect.New(reflect.TypeOf(new)).Interface()
-		vars := mux.Vars(r)
-		key := vars["id"]
-
+		key := id
 		ret := db.Where("id = ?", key).First(entity)
 		if ret != nil {
 			if ret.RowsAffected == 0 {
@@ -167,11 +167,10 @@ func Delete(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Re
 }
 
 // Link is
-func Link(db *gorm.DB, root interface{}, op string) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+func Link(db *gorm.DB, root interface{}, op string) func(w http.ResponseWriter, r *http.Request, id string) {
+	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db := db.Set("gorm:auto_preload", true).Set("gorm:association_autoupdate", false).Set("gorm:association_autocreate", false)
-		vars := mux.Vars(r)
-		id1 := vars["id"]
+		id1 := id
 
 		result := make(map[string]LinkStatusCrud)
 		rootEntity := reflect.New(reflect.TypeOf(root)).Interface()
@@ -305,50 +304,57 @@ type MapperGormCrud struct {
 	Array    interface{}
 }
 
-// https://tools.ietf.org/id/draft-snell-link-method-01.html#rfc.section.5
+func WrapMux(f func(http.ResponseWriter, *http.Request, string)) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		id := vars["id"]
+		f(w, r, id)
+	}
+}
+
 // https://tools.ietf.org/html/draft-snell-link-method-12
-func Map(r *mux.Router, db *gorm.DB) MapperGormCrud {
+func MapMux(r *mux.Router, db *gorm.DB) MapperGormCrud {
 	return MapperGormCrud{R: r, Db: db}
 }
 
-func (g MapperGormCrud) NewMap(restBase string, array interface{}) MapperGormCrud {
-	return MapperGormCrud{R: g.R, RestBase: restBase, Db: g.Db, Entity: reflect.TypeOf(array).Elem(), Array: array}
+func (g MapperGormCrud) NewMap(restBase string, entity interface{}, array interface{}) MapperGormCrud {
+	return MapperGormCrud{R: g.R, RestBase: restBase, Db: g.Db, Entity: entity, Array: array}
 }
 
 func (g MapperGormCrud) Save() MapperGormCrud {
-	g.R.HandleFunc(g.RestBase, Save(g.Db, g.Entity)).Methods(http.MethodPost)
+	g.R.HandleFunc(g.RestBase, WrapMux(Save(g.Db, g.Entity))).Methods(http.MethodPost)
 	return g
 }
 
 func (g MapperGormCrud) All() MapperGormCrud {
-	g.R.HandleFunc(g.RestBase, All(g.Db, g.Array)).Methods(http.MethodGet)
+	g.R.HandleFunc(g.RestBase, WrapMux(All(g.Db, g.Array))).Methods(http.MethodGet)
 	return g
 }
 
 func (g MapperGormCrud) Page() MapperGormCrud {
-	g.R.HandleFunc(g.RestBase+".page", Page(g.Db, g.Array)).Methods(http.MethodGet)
+	g.R.HandleFunc(g.RestBase+".page", WrapMux(Page(g.Db, g.Array))).Methods(http.MethodGet)
 	return g
 }
 
 func (g MapperGormCrud) Get() MapperGormCrud {
-	g.R.HandleFunc(g.RestBase+"/{id}", Get(g.Db, g.Entity)).Methods(http.MethodGet)
+	g.R.HandleFunc(g.RestBase+"/{id}", WrapMux(Get(g.Db, g.Entity))).Methods(http.MethodGet)
 	return g
 }
 
 func (g MapperGormCrud) Delete() MapperGormCrud {
-	g.R.HandleFunc(g.RestBase+"/{id}", Delete(g.Db, g.Entity)).Methods(http.MethodDelete)
+	g.R.HandleFunc(g.RestBase+"/{id}", WrapMux(Delete(g.Db, g.Entity))).Methods(http.MethodDelete)
 	return g
 }
 
 func (g MapperGormCrud) LinkMethod() MapperGormCrud {
-	g.R.HandleFunc(g.RestBase+"/{id}", Link(g.Db, g.Entity, "link")).Methods("LINK")
-	g.R.HandleFunc(g.RestBase+"/{id}", Link(g.Db, g.Entity, "unlink")).Methods("UNLINK")
+	g.R.HandleFunc(g.RestBase+"/{id}", WrapMux(Link(g.Db, g.Entity, "link"))).Methods("LINK")
+	g.R.HandleFunc(g.RestBase+"/{id}", WrapMux(Link(g.Db, g.Entity, "unlink"))).Methods("UNLINK")
 	return g
 }
 
 func (g MapperGormCrud) LinkUrl() MapperGormCrud {
-	g.R.HandleFunc(g.RestBase+"/{id}/link", Link(g.Db, g.Entity, "link")).Methods(http.MethodGet)
-	g.R.HandleFunc(g.RestBase+"/{id}/unlink", Link(g.Db, g.Entity, "unlink")).Methods(http.MethodGet)
+	g.R.HandleFunc(g.RestBase+"/{id}/link", WrapMux(Link(g.Db, g.Entity, "link"))).Methods(http.MethodGet)
+	g.R.HandleFunc(g.RestBase+"/{id}/unlink", WrapMux(Link(g.Db, g.Entity, "unlink"))).Methods(http.MethodGet)
 	return g
 }
 
@@ -362,6 +368,92 @@ func (g MapperGormCrud) Base() MapperGormCrud {
 }
 
 func (g MapperGormCrud) Full() MapperGormCrud {
+	g.
+		All().
+		Delete().
+		Get().
+		LinkMethod().
+		LinkUrl().
+		Page().
+		Save()
+	return g
+}
+
+/****************************GIN**********************************************/
+type MapperGinGormCrud struct {
+	R        *gin.Engine
+	RestBase string
+	Db       *gorm.DB
+	Entity   interface{}
+	Array    interface{}
+}
+
+// WrapF is a helper function for wrapping http.HandlerFunc and returns a Gin middleware.
+func WrapGin(f func(http.ResponseWriter, *http.Request, string)) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		fmt.Println(id)
+		f(c.Writer, c.Request, id)
+	}
+}
+
+func MapGin(engine *gin.Engine, db *gorm.DB) MapperGinGormCrud {
+	g := MapperGinGormCrud{R: engine, Db: db}
+	return g
+}
+
+func (g MapperGinGormCrud) NewMap(restBase string, entity interface{}, array interface{}) MapperGinGormCrud {
+	return MapperGinGormCrud{R: g.R, RestBase: restBase, Db: g.Db, Entity: entity, Array: array}
+}
+
+func (g MapperGinGormCrud) Save() MapperGinGormCrud {
+	g.R.POST(g.RestBase, WrapGin(Save(g.Db, g.Entity)))
+	return g
+}
+
+func (g MapperGinGormCrud) All() MapperGinGormCrud {
+	g.R.GET(g.RestBase, WrapGin(All(g.Db, g.Array)))
+	return g
+}
+
+func (g MapperGinGormCrud) Page() MapperGinGormCrud {
+	g.R.GET(g.RestBase+".page", WrapGin(Page(g.Db, g.Array)))
+	return g
+}
+
+func (g MapperGinGormCrud) Get() MapperGinGormCrud {
+	g.R.GET(g.RestBase+"/:id", WrapGin(Get(g.Db, g.Entity)))
+	return g
+}
+
+func (g MapperGinGormCrud) Delete() MapperGinGormCrud {
+	g.R.DELETE(g.RestBase+"/:id", WrapGin(Delete(g.Db, g.Entity)))
+
+	return g
+}
+
+func (g MapperGinGormCrud) LinkMethod() MapperGinGormCrud {
+	g.R.Handle("LINK", g.RestBase+"/:id/link", WrapGin(Link(g.Db, g.Entity, "link")))
+	g.R.Handle("UNLINK", g.RestBase+"/:id/unlink", WrapGin(Link(g.Db, g.Entity, "unlink")))
+	return g
+}
+
+func (g MapperGinGormCrud) LinkUrl() MapperGinGormCrud {
+	g.R.GET(g.RestBase+"/:id/link", WrapGin(Link(g.Db, g.Entity, "link")))
+	g.R.GET(g.RestBase+"/:id/unlink", WrapGin(Link(g.Db, g.Entity, "unlink")))
+	return g
+}
+
+func (g MapperGinGormCrud) Base() MapperGinGormCrud {
+	g.
+		Delete().
+		Get().
+		Page().
+		Save()
+	return g
+}
+
+func (g MapperGinGormCrud) Full() MapperGinGormCrud {
 	g.
 		All().
 		Delete().

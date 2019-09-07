@@ -2,14 +2,30 @@
 
 Motivation for this project is to provide the a Golang module for   it can drive all CRUD api of your GORM entities.
 
-Example:
+Example (gorilla/mux):
 
 ```golang
-	gormcrud.Map(r, db).
-	NewMap("/api/v1/author", []Author{}).Full().
-	NewMap("/api/v1/category", []Category{}).Full().
-	NewMap("/api/v1/tag", []Tag{}).Full().
-	NewMap("/api/v1/note", []Note{}).Full()
+	r := mux.NewRouter()
+        gormcrud.MapMux(r, db).
+                NewMap("/api/v1/author", Author{}, []Author{}).Full().
+                NewMap("/api/v1/category", Category{}, []Category{}).Full().
+                NewMap("/api/v1/tag", Tag{}, []Tag{}).Full().
+                NewMap("/api/v1/note", Note{}, []Note{}).Full()
+        http.Handle("/", r)
+	log.Fatal(http.ListenAndServe(addr, nil))
+```
+
+Example (Gin Web Framework):
+
+```golang
+        r := gin.Default()
+        gormcrud.MapGin(r, db).
+                NewMap("/api/v1/author", Author{}, []Author{}).Full().
+                NewMap("/api/v1/category", Category{}, []Category{}).Full().
+                NewMap("/api/v1/tag", Tag{}, []Tag{}).Full().
+                NewMap("/api/v1/note", Note{}, []Note{}).Full()
+
+        r.Run(addr)
 ```
 
 full example https://github.com/gopher1980/gormcrud/blob/master/example/main.go

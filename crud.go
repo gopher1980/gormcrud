@@ -30,17 +30,17 @@ type LinkStatusCrud struct {
 	CountBefore int    `json:"count_before"`
 }
 
-// ValidateSave is
+// ValidateSave is interface for validate save
 type ValidateSave interface {
 	CrudValidateSave(db *gorm.DB) error
 }
 
-// ValidateDelete is
+// ValidateDelete is interface for validate delete
 type ValidateDelete interface {
 	CrudValidateDelete(db *gorm.DB) error
 }
 
-// Save is
+// Save entity
 func Save(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
 
 	return func(w http.ResponseWriter, r *http.Request, id string) {
@@ -71,7 +71,7 @@ func Save(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// All is
+// All return all entities
 func All(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
 	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db := db.Set("gorm:auto_preload", true).Set("gorm:association_autoupdate", false).Set("gorm:association_autocreate", false)
@@ -87,7 +87,7 @@ func All(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// Page is
+// Page return pagination 
 func Page(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
 	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db := db.Set("gorm:auto_preload", true).Set("gorm:association_autoupdate", false).Set("gorm:association_autocreate", false)
@@ -107,7 +107,7 @@ func Page(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Req
 	}
 }
 
-// Get is
+// Get return one entity
 func Get(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
 	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db := db.Set("gorm:auto_preload", true).
@@ -133,7 +133,7 @@ func Get(db *gorm.DB, elem interface{}) func(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// Delete is
+// Delete is operation for delete entity
 func Delete(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Request, id string) {
 	return func(w http.ResponseWriter, r *http.Request, id string) {
 		w.Header().Set("Content-Type", "application/json")
@@ -166,7 +166,7 @@ func Delete(db *gorm.DB, new interface{}) func(w http.ResponseWriter, r *http.Re
 	}
 }
 
-// Link is
+// Link is operation for link and unlink entities
 func Link(db *gorm.DB, root interface{}, op string) func(w http.ResponseWriter, r *http.Request, id string) {
 	return func(w http.ResponseWriter, r *http.Request, id string) {
 		db := db.Set("gorm:auto_preload", true).Set("gorm:association_autoupdate", false).Set("gorm:association_autocreate", false)
@@ -313,6 +313,8 @@ func WrapMux(f func(http.ResponseWriter, *http.Request, string)) func(http.Respo
 }
 
 // https://tools.ietf.org/html/draft-snell-link-method-12
+
+// MapMux is constructor for mapper of mux
 func MapMux(r *mux.Router, db *gorm.DB) MapperGormCrud {
 	return MapperGormCrud{R: r, Db: db}
 }
@@ -379,7 +381,7 @@ func (g MapperGormCrud) Full() MapperGormCrud {
 	return g
 }
 
-/****************************GIN**********************************************/
+// MapperGinGornCrud is struct of mapper gingonic
 type MapperGinGormCrud struct {
 	R        *gin.Engine
 	RestBase string
@@ -397,53 +399,63 @@ func WrapGin(f func(http.ResponseWriter, *http.Request, string)) gin.HandlerFunc
 	}
 }
 
+// MapGin is constructor mapper for gingonic
 func MapGin(engine *gin.Engine, db *gorm.DB) MapperGinGormCrud {
 	g := MapperGinGormCrud{R: engine, Db: db}
 	return g
 }
 
+// NewMap configuration endpoint
 func (g MapperGinGormCrud) NewMap(restBase string, entity interface{}, array interface{}) MapperGinGormCrud {
 	return MapperGinGormCrud{R: g.R, RestBase: restBase, Db: g.Db, Entity: entity, Array: array}
 }
 
+// Save one entity
 func (g MapperGinGormCrud) Save() MapperGinGormCrud {
 	g.R.POST(g.RestBase, WrapGin(Save(g.Db, g.Entity)))
 	return g
 }
 
+// Return all entities
 func (g MapperGinGormCrud) All() MapperGinGormCrud {
 	g.R.GET(g.RestBase, WrapGin(All(g.Db, g.Array)))
 	return g
 }
 
+// Page return page with querystring page(number page) and limit (size page) .page?pahe=1&limit=10
 func (g MapperGinGormCrud) Page() MapperGinGormCrud {
 	g.R.GET(g.RestBase+".page", WrapGin(Page(g.Db, g.Array)))
 	return g
 }
 
+// Get return one entity for id
 func (g MapperGinGormCrud) Get() MapperGinGormCrud {
 	g.R.GET(g.RestBase+"/:id", WrapGin(Get(g.Db, g.Entity)))
 	return g
 }
 
+// Delete map operation delete on method delete 
 func (g MapperGinGormCrud) Delete() MapperGinGormCrud {
 	g.R.DELETE(g.RestBase+"/:id", WrapGin(Delete(g.Db, g.Entity)))
 
 	return g
 }
 
+// LinkMethod map operation link and unlink with indicator in method htpp LINK UNLINK
 func (g MapperGinGormCrud) LinkMethod() MapperGinGormCrud {
 	g.R.Handle("LINK", g.RestBase+"/:id/link", WrapGin(Link(g.Db, g.Entity, "link")))
 	g.R.Handle("UNLINK", g.RestBase+"/:id/unlink", WrapGin(Link(g.Db, g.Entity, "unlink")))
 	return g
 }
 
+// LinkUrl map operation link and unlink with indicator in url
 func (g MapperGinGormCrud) LinkUrl() MapperGinGormCrud {
 	g.R.GET(g.RestBase+"/:id/link", WrapGin(Link(g.Db, g.Entity, "link")))
 	g.R.GET(g.RestBase+"/:id/unlink", WrapGin(Link(g.Db, g.Entity, "unlink")))
 	return g
 }
 
+// Base map only Delete, Get , Page and Save
 func (g MapperGinGormCrud) Base() MapperGinGormCrud {
 	g.
 		Delete().
@@ -453,6 +465,7 @@ func (g MapperGinGormCrud) Base() MapperGinGormCrud {
 	return g
 }
 
+// Full map all apis for entity
 func (g MapperGinGormCrud) Full() MapperGinGormCrud {
 	g.
 		All().
